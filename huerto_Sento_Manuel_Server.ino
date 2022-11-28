@@ -20,8 +20,8 @@ int voltageTemp=4.096;
   const char WiFiSSID[] = "GTI1";
   const char WiFiPSK[] = "1PV.arduino.Toledo";
 #else //Conexion fuera de la UPV
-  const char WiFiSSID[] = "JAVIER";
-  const char WiFiPSK[] = "palmera24";
+  const char WiFiSSID[] = "...";
+  const char WiFiPSK[] = "...";
 #endif
 
 #define power_pin 5
