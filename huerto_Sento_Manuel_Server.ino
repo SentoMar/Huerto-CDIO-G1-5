@@ -15,6 +15,7 @@ int pHArray[ArrayLength];
 int pHArrayIndex = 0;
 int voltageTemp=4.096;
 #define REST_SERVER_THINGSPEAK
+#define WiFi_CONNECTION_UPV
 
 #ifdef WiFi_CONNECTION_UPV //Conexion UPV
   const char WiFiSSID[] = "GTI1";
