@@ -17,7 +17,7 @@ int pHArray[ArrayLength];
 int pHArrayIndex = 0;
 int voltageTemp=4.096;
 #define REST_SERVER_THINGSPEAK
-//#define WiFi_CONNECTION_UPV
+#define WiFi_CONNECTION_UPV
 int luminityValue = 0;
 SoftwareSerial gps(12,13);
 
@@ -27,8 +27,8 @@ char dato=' ';
   const char WiFiSSID[] = "GTI1";
   const char WiFiPSK[] = "1PV.arduino.Toledo";
 #else //Conexion fuera de la UPV
-  const char WiFiSSID[] = "JAVIER";
-  const char WiFiPSK[] = "palmera24";
+  const char WiFiSSID[] = "---";
+  const char WiFiPSK[] = "---";
 #endif
 
 #define power_pin 5
