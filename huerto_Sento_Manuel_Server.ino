@@ -1,5 +1,9 @@
 #include <Adafruit_ADS1X15.h>
 #include <ESP8266WiFi.h>
+#include <SoftwareSerial.h>//libreria del gps
+#include <TinyGPS++.h>
+
+const int sleepTimeS = 25; //(segundos)
 
 Adafruit_ADS1115 ads1115;
 int channelValue = 0;
@@ -15,17 +19,62 @@ int pHArray[ArrayLength];
 int pHArrayIndex = 0;
 int voltageTemp=4.096;
 #define REST_SERVER_THINGSPEAK
-#define WiFi_CONNECTION_UPV
+//#define WiFi_CONNECTION_UPV
+int luminityValue = 0;
+TinyGPSPlus gps;
+SoftwareSerial ss(13,12);
+
+char dato=' ';
 
 #ifdef WiFi_CONNECTION_UPV //Conexion UPV
   const char WiFiSSID[] = "GTI1";
   const char WiFiPSK[] = "1PV.arduino.Toledo";
 #else //Conexion fuera de la UPV
-  const char WiFiSSID[] = "...";
-  const char WiFiPSK[] = "...";
+  const char WiFiSSID[] = "JAVIER";
+  const char WiFiPSK[] = "palmera24";
 #endif
 
 #define power_pin 5
+//=====================================================
+//=====================================================
+//=====================================================
+
+void regulador(double tempValue, double pHValue, double salinityValue, double humiditymap, double luminityValue) {
+    Serial.println(" ");
+    Serial.println("Se han verificado los valores de la mezcla y ambiente y se ha concluido lo siguiente: ");
+
+    if(humiditymap > 40 || humiditymap < 80) {
+      Serial.println("La humedad es ideal, ");
+    }
+    else {
+      Serial.println("La humedad no tiene buenos numeros, ");
+    }
+
+    if(salinityValue > 5) {
+      Serial.println("la mezcla esta muy salada, ");
+    }
+    else{
+      Serial.println("la mezcla esta bien de sal, ");
+    }
+
+    if(pHValue > 6 || pHValue < 8) {
+      Serial.println("el nivel de pH esta equilibrado, ");
+    }
+    else {
+      Serial.println("el nivel de pH no es seguro, ");
+    }
+
+    if(tempValue > 15 || tempValue < 30) {
+      Serial.println("la temperatura es ideal y ");
+    }
+    else {
+      Serial.println("la temperatura no es ideal y ");
+    }
+    if(luminityValue < 300) {
+      Serial.println("la luz es ideal");
+    }
+    Serial.println("");
+}
 
 //=====================================================
 //=====================================================
@@ -33,13 +82,14 @@ int voltageTemp=4.096;
 
 double tempValue(int channelValue){
   //captura una muestra del ADS1115
-  int16_t adc0 = ads1115.readADC_SingleEnded(2);
-  //adc0 va a ser equivalente a lo que conocemos como vd en la formula
+  int16_t adc1 = ads1115.readADC_SingleEnded(1);
+  //Serial.println(adc1);
+  //adc1 va a ser equivalente a lo que conocemos como vd en la formula
   
   //aplicamos la formula de la temperatura en
   //funcion de la lectura digital
 
-  float vo =((adc0*4.096)/32727);
+  float vo =((adc1*6.128)/32727);
 
   float temperatura = ((vo - 0.79)/0.033);
   Serial.print("Temperatura: ");
@@ -78,8 +128,8 @@ double phValue(int channelValue){
       samplingTime=millis();
     }
    if(millis()-printTime > printInterval){ 
-      Serial.print("Voltage: ");
-      Serial.println(voltage, 2);
+      //Serial.print("Voltage: ");
+      //Serial.println(voltage, 2);
       Serial.print("pH value: ");
       Serial.println(pHValue, 2);
       printTime=millis();
@@ -133,12 +183,16 @@ double salinityValue(int channelValue) {
 //=====================================================
 
 double humiditymap(int channelValue) {
-  int16_t adc0 = ads1115.readADC_SingleEnded(channelValue);//leemos el vlor de adc
-  humidityValue = map(adc0, 20150, 12000, 0, 100);//se mapea el valor digital
+  int16_t adc0 = ads1115.readADC_SingleEnded(2);//leemos el vlor de adc
+  humidityValue = map(adc0, 10535, 3500, 0, 100);//se mapea el valor digital
   //Gracias al mapeado optenemos un valor en porcentaje
+  //Serial.print(adc0);
   Serial.print("Humedad: ");
   if(humidityValue>=100){
   Serial.println("100%");
+  }
+  if(humidityValue<0) {
+    Serial.println("0%");
   }
   else{
   Serial.print(humidityValue, DEC);
@@ -151,6 +205,44 @@ double humiditymap(int channelValue) {
 //=====================================================
 //=====================================================
 //=====================================================
+
+double luminity(int channelValue) {
+  int16_t adc3 = ads1115.readADC_SingleEnded(3);
+  double vd = (4.096/32767)*adc3;
+  double vd2 = ((adc3*4.096)*10/32727);
+
+ if(adc3 >= 3200) {
+    adc3 == 3200;
+ }
+  if(adc3 < 60){
+    Serial.println("Sombra");
+  }
+  if(adc3 > 60 && adc3 < 200){
+    Serial.println("Luz ambiente");
+  }
+  if(adc3 > 200 && adc3 < 1000) {
+    Serial.println("Luz fuerte");
+  }
+  if(adc3 > 1000 && adc3 < 3199) {
+    Serial.println("Luz muy fuerte");
+  }
+  else if(adc3 == 3200){
+    Serial.println("Sensor Saturado");
+  }
+  //Serial.print("Valor digital: ");
+  //Serial.println(adc3);
+  //Serial.print("Tension analogica rara: ");
+  //Serial.println(vd, 2);
+  //Serial.print("Tension analogica de temp: ");
+  //Serial.println(vd2, 2);
+  delay(1000);
+
+  return vd;
+}
+//=====================================================
+//=====================================================
+//=====================================================
+
 
 ///////////////////////////////////////////////////////
 /////////////// SERVER Definitions /////////////////////
@@ -181,7 +273,7 @@ WiFiClient client;
   String MyWriteAPIKey="PruebaGTI"; // Escribe la clave de tu canal Dweet
 #endif
 
-#define NUM_FIELDS_TO_SEND 4 //Numero de medidas a enviar al servidor REST (Entre 1 y 8)
+#define NUM_FIELDS_TO_SEND 7 //Numero de medidas a enviar al servidor REST (Entre 1 y 8)
 
 /////////////////////////////////////////////////////
 /////////////// Pin Definitions ////////////////
@@ -321,6 +413,7 @@ void setup() {
   Serial.begin(115200);//ponemos la velocidad en baudios a la que vamos a trabajar
   ads1115.begin(0x48);
   ads1115.setGain(GAIN_TWOTHIRDS);
+  ss.begin(9600);
   //Utilizamos esta ganancia ya que el voltaje usado es de 5V 
   //siendo este el mas cecano pues se relaciona con 6,124V  
   pinMode(power_pin, OUTPUT);
@@ -334,7 +427,10 @@ void setup() {
       Serial.println(String( Server_HttpPort ));
       Serial.print("Server_Rest: ");
       Serial.println(Rest_Host);
-  #endif
+  #endif 
+ //Serial.println("Inicializando el GPS...");
+ //delay(27000);
+ //Serial.println("Esperando datos");
 }
 
 //=====================================================
@@ -342,6 +438,7 @@ void setup() {
 //=====================================================
 
 void loop() {
+
   String Data[ NUM_FIELDS_TO_SEND + 1]; // Podemos enviar hasta 8 datos
 
   Data[1] = String(humiditymap(0));
@@ -352,7 +449,25 @@ void loop() {
 
   Data[4] = String(tempValue(0));
 
+  Data[5] = String(luminity(0));
+  while(ss.available()>0){
+    gps.encode(ss.read());
+    if(gps.location.isUpdated()){
+      Data[6] = String(gps.location.lat(), 6);
+      Data[7] = String(gps.location.lng(), 6);
+    }
+  }
+
   HTTPGet( Data, NUM_FIELDS_TO_SEND );
 
-  //se llama a cada funcion por serparado
+  double tempp = tempValue(0);
+  double phh = phValue(0);
+  double salinityy = salinityValue(0);
+  double humid = humiditymap(0);
+  double luminityy = luminity(0);
+  
+  regulador(tempp,phh,salinityy,humid,luminityy);
+
+  delay(5000);
+  //deepSleep(1000000*sleepTimeS);
 }
